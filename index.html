@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="uk" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Дашборд моніторингу ґрунтів Сумщини та Харківщини (Серпень 2026)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .badge-critical { background-color: #fee2e2; color: #991b1b; border: 1px solid #f87171; }
+        .badge-warning { background-color: #fef3c7; color: #92400e; border: 1px solid #fbbf24; }
+        .badge-normal { background-color: #d1fae5; color: #065f46; border: 1px solid #34d399; }
+        #soilMap { width: 100%; height: 580px; border-radius: 0.75rem; z-index: 10; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-full flex flex-col antialiased">
+
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-amber-600 p-2.5 rounded-xl shadow-inner flex items-center justify-center">
+                    <i class="fa-solid fa-earth-americas text-white text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">Екологічний моніторинг ґрунтів</h1>
+                    <p class="text-xs text-slate-400">Сумська та Харківська області (Серпень, 2026 р.) • ГО «НОВА Енергія»</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+                <button onclick="switchTab('overview')" id="btn-overview" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-amber-600 text-white shadow">
+                    <i class="fa-solid fa-chart-pie mr-2"></i>Огляд показників
+                </button>
+                <button onclick="switchTab('mapview')" id="btn-mapview" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-800 hover:bg-slate-700 text-slate-200">
+                    <i class="fa-solid fa-map-location-dot mr-2"></i>Карта проб
+                </button>
+                <button onclick="switchTab('registry')" id="btn-registry" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-800 hover:bg-slate-700 text-slate-200">
+                    <i class="fa-solid fa-table-list mr-2"></i>Реєстр проб (20)
+                </button>
+                <button onclick="switchTab('risks')" id="btn-risks" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-800 hover:bg-slate-700 text-slate-200">
+                    <i class="fa-solid fa-triangle-exclamation mr-2"></i>Воєнні ризики
+                </button>
+                <button onclick="switchTab('recommendations')" id="btn-recommendations" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-800 hover:bg-slate-700 text-slate-200">
+                    <i class="fa-solid fa-shield-halved mr-2"></i>Рекомендації
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 overflow-y-auto">
+        
+        <!-- Tab 1: Overview -->
+        <div id="tab-overview" class="tab-content active space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Досліджено проб ґрунту</p>
+                        <h3 class="text-3xl font-bold text-slate-900 mt-1">20</h3>
+                        <p class="text-xs text-slate-500 mt-1">у 12 територіальних громадах</p>
+                    </div>
+                    <div class="bg-blue-50 text-blue-600 p-4 rounded-xl text-xl"><i class="fa-solid fa-seedling"></i></div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Зафіксовано перевищень ГДК</p>
+                        <h3 class="text-3xl font-bold text-amber-600 mt-1">13</h3>
+                        <p class="text-xs text-slate-500 mt-1">по рухомих формах металів</p>
+                    </div>
+                    <div class="bg-amber-50 text-amber-600 p-4 rounded-xl text-xl"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Критичне забруднення</p>
+                        <h3 class="text-3xl font-bold text-red-600 mt-1">2 <span class="text-sm font-normal text-slate-500">проби</span></h3>
+                        <p class="text-xs text-slate-500 mt-1">Свинець (2900 мг/кг) та Мідь (160 мг/кг)</p>
+                    </div>
+                    <div class="bg-red-50 text-red-600 p-4 rounded-xl text-xl"><i class="fa-solid fa-radiation"></i></div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Розподіл за областями</p>
+                        <div class="flex gap-2 mt-2">
+                            <span class="inline-flex items-center text-xs font-medium bg-amber-100 text-amber-800 px-2 py-1 rounded-md">Сумщина: 15</span>
+                            <span class="inline-flex items-center text-xs font-medium bg-teal-100 text-teal-800 px-2 py-1 rounded-md">Харківщина: 5</span>
+                        </div>
+                    </div>
+                    <div class="bg-teal-50 text-teal-600 p-4 rounded-xl text-xl"><i class="fa-solid fa-map"></i></div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+                    <h3 class="text-base font-bold text-slate-900 mb-1">Перевищення нормативів за показниками</h3>
+                    <p class="text-xs text-slate-500 mb-4">Кількість зафіксованих перевищень ГДК рухомих форм у 20 пробах</p>
+                    <div class="relative flex-1 min-h-[300px]">
+                        <canvas id="soilExcessesChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+                    <h3 class="text-base font-bold text-slate-900 mb-1">Структура вибірки та стан ґрунтів</h3>
+                    <p class="text-xs text-slate-500 mb-4">Розподіл проб за регіонами та критичність</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                        <div class="relative h-[220px]">
+                            <canvas id="soilRegionsChart"></canvas>
+                        </div>
+                        <div class="space-y-3 text-sm">
+                            <div class="p-3 bg-red-50 rounded-xl border border-red-100">
+                                <span class="font-bold text-red-700 block text-xs uppercase tracking-wider">Свинець (Pb)</span>
+                                <span class="text-slate-700">5 перевищень. Аномалія <strong>2900 мг/кг</strong> у с. Кударі (у 483 рази вище ГДК).</span>
+                            </div>
+                            <div class="p-3 bg-amber-50 rounded-xl border border-amber-100">
+                                <span class="font-bold text-amber-700 block text-xs uppercase tracking-wider">Мідь (Cu) та Нікель (Ni)</span>
+                                <span class="text-slate-700">Мідь до <strong>160 мг/кг</strong> у Тернах; нікель до 30 мг/кг у Кударях.</span>
+                            </div>
+                            <div class="p-3 bg-blue-50 rounded-xl border border-blue-100">
+                                <span class="font-bold text-blue-700 block text-xs uppercase tracking-wider">Цинк і Марганець</span>
+                                <span class="text-slate-700">Підвищення поблизу котелень (Білопілля, котельня Старопутивльська).</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gradient-to-r from-amber-900 to-slate-900 text-white p-6 rounded-2xl shadow-md">
+                <div class="flex items-start gap-4">
+                    <div class="bg-amber-500 text-white p-3 rounded-xl text-2xl"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                    <div>
+                        <h4 class="text-lg font-bold">Головний екологічний висновок моніторингу ґрунтів (серпень 2026)</h4>
+                        <p class="text-slate-300 text-sm mt-1 leading-relaxed">
+                            Перевищення ГДК рухомих форм важких металів виявлено у <strong>7 із 20 проб (35%)</strong>, причому всі вони зосереджені в Сумській області. Усі зафіксовані критичні та значні аномалії (свинець 2900 мг/кг у Кударях, мідь 160 мг/кг у Тернах) розташовані безпосередньо у зонах воєнних влучань та активних бойових дій.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Map View -->
+        <div id="tab-mapview" class="tab-content space-y-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900">Детальна географічна карта точок відбору проб ґрунту</h3>
+                        <p class="text-xs text-slate-500">Використовуйте детальну карту для перегляду населених пунктів та точок відбору. Натисніть на маркер для деталей.</p>
+                    </div>
+                    <div class="flex items-center gap-3 text-xs">
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-red-600 inline-block"></span> Критичне</span>
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span> Помірне</span>
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-600 inline-block"></span> Норма</span>
+                    </div>
+                </div>
+                <div id="soilMap"></div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Registry -->
+        <div id="tab-registry" class="tab-content space-y-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900">Зведений реєстр проб ґрунту (20 точок)</h3>
+                        <p class="text-xs text-slate-500">Детальна інформація про громади, джерела, координати та результати аналізів рухомих форм</p>
+                    </div>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <div class="relative flex-1 sm:w-64">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><i class="fa-solid fa-search"></i></span>
+                            <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Пошук громади, села..." class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto rounded-xl border border-slate-200">
+                    <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
+                        <thead class="bg-slate-100 text-slate-700 font-semibold uppercase text-xs">
+                            <tr>
+                                <th class="px-4 py-3">№</th>
+                                <th class="px-4 py-3">Дата / Громада</th>
+                                <th class="px-4 py-3">Область / Локація</th>
+                                <th class="px-4 py-3">Опис місця та впливу</th>
+                                <th class="px-4 py-3">GPS-координати</th>
+                                <th class="px-4 py-3">Ключові показники</th>
+                                <th class="px-4 py-3 text-center">Дія</th>
+                            </tr>
+                        </thead>
+                        <tbody id="soilTableBody" class="divide-y divide-slate-200 bg-white">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: Risks -->
+        <div id="tab-risks" class="tab-content space-y-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold text-slate-900 mb-1">Воєнний контекст та аналіз аномальних забруднень</h3>
+                <p class="text-xs text-slate-500 mb-6">Зв'язок між наслідками бойових дій, обстрілів та екстремальними концентраціями металів у ґрунтах</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="p-5 rounded-2xl border border-red-200 bg-red-50/50 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold uppercase tracking-wider text-red-700 bg-red-100 px-2.5 py-1 rounded-md">Проба №7</span>
+                            <span class="text-xs font-semibold text-red-600">с. Кударі (ліс)</span>
+                        </div>
+                        <h4 class="font-bold text-slate-900">Екстремальний свинець (2900 мг/кг)</h4>
+                        <p class="text-sm text-slate-600 leading-relaxed">
+                            У 483 рази вище ГДК (6 мг/кг). Це абсолютний максимум дослідження. Локальна аномалія в лісі поблизу с/г угідь, де під час водного етапу зафіксовано приліт реактивного снаряда.
+                        </p>
+                    </div>
+
+                    <div class="p-5 rounded-2xl border border-red-200 bg-red-50/50 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold uppercase tracking-wider text-red-700 bg-red-100 px-2.5 py-1 rounded-md">Проба №1</span>
+                            <span class="text-xs font-semibold text-red-600">сел. Терни</span>
+                        </div>
+                        <h4 class="font-bold text-slate-900">Аномальна мідь (160 мг/кг)</h4>
+                        <p class="text-sm text-slate-600 leading-relaxed">
+                            У 53.3 раза вище норми. Одночасно підвищені нікель (7.3 мг/кг) і свинець (6.5 мг/кг). У Тернах зафіксовано місце удару «шахеда». Пов'язано з ураженою інфраструктурою та детонацією.
+                        </p>
+                    </div>
+
+                    <div class="p-5 rounded-2xl border border-amber-200 bg-amber-50/50 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold uppercase tracking-wider text-amber-700 bg-amber-100 px-2.5 py-1 rounded-md">Проба №6</span>
+                            <span class="text-xs font-semibold text-amber-600">с. Кударі (с/г угіддя)</span>
+                        </div>
+                        <h4 class="font-bold text-slate-900">Підвищений нікель (30 мг/кг)</h4>
+                        <p class="text-sm text-slate-600 leading-relaxed">
+                            Перевищення ГДК у 7.5 раза. Сполуки нікелю є сильними алергенами й потенційними канцерогенами. Потребує детального обстеження агрохімічного стану.
+                        </p>
+                    </div>
+
+                    <div class="p-5 rounded-2xl border border-amber-200 bg-amber-50/50 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold uppercase tracking-wider text-amber-700 bg-amber-100 px-2.5 py-1 rounded-md">Проба №15</span>
+                            <span class="text-xs font-semibold text-amber-600">м. Білопілля (котельня)</span>
+                        </div>
+                        <h4 class="font-bold text-slate-900">Комплексне забруднення котельні</h4>
+                        <p class="text-sm text-slate-600 leading-relaxed">
+                            Мідь (22 мг/кг), цинк (98 мг/кг), марганець (170 мг/кг), а також кадмій. Така асоціація характерна для золошлакових відходів та спалювання палива на комунальному об'єкті.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 5: Recommendations -->
+        <div id="tab-recommendations" class="tab-content space-y-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-900">Комплекс невідкладних заходів безпеки для громад</h3>
+                    <p class="text-xs text-slate-500">Рекомендації на основі екологічного звіту моніторингу ґрунтів (серпень 2026)</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="p-5 rounded-xl border border-red-200 bg-red-50/30 space-y-3">
+                        <div class="w-10 h-10 rounded-lg bg-red-600 text-white flex items-center justify-center font-bold text-lg">1</div>
+                        <h4 class="font-bold text-slate-900">Обмеження землекористування</h4>
+                        <p class="text-sm text-slate-600 leading-relaxed">
+                            До підтвердження результатів не використовувати землі поблизу точок №7, №6, №1 та №15 для вирощування харчових культур чи випасу худоби.
+                        </p>
+                    </div>
+
+                    <div class="p-5 rounded-xl border border-amber-200 bg-amber-50/30 space-y-3">
+                        <div class="w-10 h-10 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-lg">2</div>
+                        <h4 class="font-bold text-slate-900">Повторне обстеження ДСНС</h4>
+                        <p class="text-sm text-slate-600 leading-relaxed">
+                            Повторний відбір проб у Тернах і Кударях проводити лише після піротехнічного обстеження територій на наявність вибухонебезпечних предметів.
+                        </p>
+                    </div>
+
+                    <div class="p-5 rounded-xl border border-teal-200 bg-teal-50/30 space-y-3">
+                        <div class="w-10 h-10 rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold text-lg">3</div>
+                        <h4 class="font-bold text-slate-900">Лабораторна верифікація</h4>
+                        <p class="text-sm text-slate-600 leading-relaxed">
+                            Проведення арбітражних аналізів в акредитованих лабораторіях з визначенням як рухомих форм, так і валового вмісту важких металів у ґрунті.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="p-5 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div>
+                        <h5 class="font-bold text-base">Завантажити повний офіційний звіт по ґрунтах (PDF)</h5>
+                        <p class="text-xs text-slate-400 mt-0.5">Звіт підготовлено ГО «НОВА ЕНЕРГІЯ» в рамках проєкту</p>
+                    </div>
+                    <a href="https://drive.google.com/file/d/1i4DDOcC03EOsfcqnYsNRrNryuXuPX6-K/view?usp=sharing" target="_blank" rel="noopener noreferrer" class="bg-amber-600 hover:bg-amber-500 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition shadow whitespace-nowrap inline-flex items-center">
+                        <i class="fa-solid fa-file-pdf mr-2"></i>Офіційний звіт (PDF)
+                    </a>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal for details -->
+    <div id="customModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center space-x-3 text-amber-600">
+                <i class="fa-solid fa-circle-info text-2xl"></i>
+                <h3 class="text-lg font-bold text-slate-900">Інформація щодо проби ґрунту</h3>
+            </div>
+            <p id="modalText" class="text-sm text-slate-600 leading-relaxed"></p>
+            <div class="flex justify-end pt-2">
+                <button onclick="closeModal()" class="bg-slate-900 text-white px-5 py-2 rounded-xl text-sm font-medium hover:bg-slate-800 transition">Зрозуміло</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const soilSamples = [
+            { id: 1, date: "06.08.2026", community: "Недригайлівська ТГ", oblast: "Сумська", location: "сел. Терни", desc: "Мідь 160 мг/кг (53.3 ГДК), Нікель 7.3 мг/кг, Свинець 6.5 мг/кг. Поблизу місця удару шахеда.", lat: 50.9907, lng: 33.9716, status: "critical" },
+            { id: 2, date: "06.08.2026", community: "Недригайлівська ТГ", oblast: "Сумська", location: "с. Хоружівка (агро)", desc: "Усі показники в межах норми.", lat: 50.4982, lng: 34.9715, status: "normal" },
+            { id: 3, date: "06.08.2026", community: "Недригайлівська ТГ", oblast: "Сумська", location: "с. Хоружівка (біля агро)", desc: "Свинець 11 мг/кг (помірне перевищення ГДК 6 мг/кг).", lat: 50.9185, lng: 33.8037, status: "warning" },
+            { id: 4, date: "11.08.2026", community: "Лебединська ТГ", oblast: "Сумська", location: "м. Лебедин (військомат)", desc: "Мідь 2.7 мг/кг (90% від ГДК), інші в нормі.", lat: 50.5836, lng: 34.4853, status: "normal" },
+            { id: 5, date: "11.08.2026", community: "Лебединська ТГ", oblast: "Сумська", location: "м. Лебедин (підстанція)", desc: "Усі показники в межах норми.", lat: 50.5977, lng: 34.5108, status: "normal" },
+            { id: 6, date: "17.08.2026", community: "Комишанська ТГ", oblast: "Сумська", location: "с. Кударі (с/г угіддя)", desc: "Нікель 30 мг/кг (7.5 ГДК при нормі 4). Поблизу прильоту реактивного снаряда.", lat: 50.3015, lng: 34.5345, status: "critical" },
+            { id: 7, date: "17.08.2026", community: "Комишанська ТГ", oblast: "Сумська", location: "с. Кударі (ліс)", desc: "Свинець 2900 мг/кг (рекорд у 483 рази вище ГДК!), Нікель 5.6 мг/кг.", lat: 50.3022, lng: 34.5397, status: "critical" },
+            { id: 8, date: "17.08.2026", community: "Комишанська ТГ", oblast: "Сумська", location: "с. Мала Павлівка (траса)", desc: "Усі показники в межах норми.", lat: 50.3508, lng: 34.3981, status: "normal" },
+            { id: 9, date: "18.08.2026", community: "Андріяшівська ТГ", oblast: "Сумська", location: "с. Гудими", desc: "Усі показники в межах норми.", lat: 50.9158, lng: 33.8247, status: "normal" },
+            { id: 10, date: "27.08.2026", community: "Солоницівська ТГ", oblast: "Харківська", location: "м. Вільшани (АЗС)", desc: "Усі показники в межах норми.", lat: 50.0531, lng: 35.8628, status: "normal" },
+            { id: 11, date: "21.08.2026", community: "Роменська ТГ", oblast: "Сумська", location: "м. Ромни (АЗС)", desc: "Усі показники в межах норми.", lat: 50.7487, lng: 33.5329, status: "normal" },
+            { id: 12, date: "24.08.2026", community: "Сумська ТГ", oblast: "Сумська", location: "м. Суми (Епіцентр)", desc: "Кадмій 0.49 мг/кг (70% ГДК), наслідки пожежі та обстрілу.", lat: 50.9183, lng: 34.8353, status: "normal" },
+            { id: 13, date: "24.08.2026", community: "Тростянецька ТГ", oblast: "Сумська", location: "м. Тростянець (АЗС)", desc: "Свинець 8.8 мг/кг, Цинк 32 мг/кг (помірні перевищення).", lat: 50.5699, lng: 33.3178, status: "warning" },
+            { id: 14, date: "25.08.2026", community: "Білопільська ТГ", oblast: "Сумська", location: "м. Білопілля (інтернат)", desc: "Мідь 2.5 мг/кг (83% ГДК), інші в нормі.", lat: 51.1470, lng: 34.3149, status: "normal" },
+            { id: 15, date: "25.08.2026", community: "Білопільська ТГ", oblast: "Сумська", location: "м. Білопілля (котельня)", desc: "Мідь 22 мг/кг, Цинк 98 мг/кг, Марганець 170 мг/кг (золошлакові відходи).", lat: 51.1383, lng: 34.3128, status: "critical" },
+            { id: 16, date: "25.08.2026", community: "Білопільська ТГ", oblast: "Сумська", location: "м. Білопілля (котельня Соборна)", desc: "Свинець 6.4 мг/кг (помірне перевищення).", lat: 51.1452, lng: 34.3138, status: "warning" },
+            { id: 17, date: "27.08.2026", community: "Солоницівська ТГ", oblast: "Харківська", location: "Подворки (пустир)", desc: "Усі показники в межах норми.", lat: 49.9763, lng: 36.1089, status: "normal" },
+            { id: 18, date: "27.08.2026", community: "Малоданилівська СГ", oblast: "Харківська", location: "Черкаська Лозова", desc: "Усі показники в межах норми.", lat: 50.1161, lng: 36.2237, status: "normal" },
+            { id: 19, date: "27.08.2026", community: "Харківська МТГ", oblast: "Харківська", location: "м. Харків (Аерокосмічний)", desc: "Усі показники в межах норми.", lat: 49.9030, lng: 36.2806, status: "normal" },
+            { id: 20, date: "27.08.2026", community: "Пісочинська ТГ", oblast: "Харківська", location: "Коротич (аеропорт/АЗС)", desc: "Усі показники в межах норми.", lat: 49.9678, lng: 36.0122, status: "normal" }
+        ];
+
+        let soilMap = null;
+
+        function renderTable(data) {
+            const tbody = document.getElementById('soilTableBody');
+            tbody.innerHTML = '';
+            data.forEach(item => {
+                let badgeClass = item.status === 'critical' ? 'badge-critical' : (item.status === 'warning' ? 'badge-warning' : 'badge-normal');
+                let statusText = item.status === 'critical' ? 'Критичне' : (item.status === 'warning' ? 'Помірне / Значне' : 'У нормі');
+                
+                let tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+                tr.innerHTML = `
+                    <td class="px-4 py-3 font-semibold text-slate-900">№${item.id}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <div class="font-medium text-slate-900">${item.community}</div>
+                        <div class="text-xs text-slate-500">${item.date}</div>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="font-medium text-slate-900">${item.oblast}</div>
+                        <div class="text-xs text-slate-600">${item.location}</div>
+                    </td>
+                    <td class="px-4 py-3 text-slate-600 text-xs">${item.desc}</td>
+                    <td class="px-4 py-3 text-xs text-slate-500 font-mono">${item.lat.toFixed(4)}, ${item.lng.toFixed(4)}</td>
+                    <td class="px-4 py-3">
+                        <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${badgeClass}">${statusText}</span>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <button onclick="showDetails(${item.id})" class="bg-slate-100 hover:bg-amber-600 hover:text-white text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition shadow-sm">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterTable() {
+            let query = document.getElementById('searchInput').value.toLowerCase();
+            let filtered = soilSamples.filter(s => 
+                s.community.toLowerCase().includes(query) || 
+                s.location.toLowerCase().includes(query) || 
+                s.oblast.toLowerCase().includes(query) ||
+                s.desc.toLowerCase().includes(query)
+            );
+            renderTable(filtered);
+        }
+
+        function showDetails(id) {
+            let sample = soilSamples.find(s => s.id === id);
+            if (!sample) return;
+            let text = `Проба ґрунту №${sample.id} (${sample.location}, ${sample.community}, ${sample.oblast} обл.)\nДата відбору: ${sample.date}\nКоординати: ${sample.lat.toFixed(4)}, ${sample.lng.toFixed(4)}\n\nХарактеристика та результати:\n${sample.desc}`;
+            document.getElementById('modalText').innerText = text;
+            document.getElementById('customModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('customModal').classList.add('hidden');
+        }
+
+        function switchTab(tabName) {
+            const tabs = ['overview', 'mapview', 'registry', 'risks', 'recommendations'];
+            tabs.forEach(t => {
+                document.getElementById('tab-' + t).classList.remove('active');
+                let btn = document.getElementById('btn-' + t);
+                btn.className = "px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-800 hover:bg-slate-700 text-slate-200";
+            });
+            document.getElementById('tab-' + tabName).classList.add('active');
+            let activeBtn = document.getElementById('btn-' + tabName);
+            activeBtn.className = "px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-amber-600 text-white shadow";
+
+            if (tabName === 'mapview') {
+                setTimeout(() => {
+                    if (!soilMap) {
+                        initMap();
+                    } else {
+                        soilMap.invalidateSize();
+                    }
+                }, 200);
+            }
+        }
+
+        function initMap() {
+            if (soilMap) return;
+            
+            soilMap = L.map('soilMap').setView([50.4, 35.0], 8);
+
+            // Reliable Esri Gray Canvas tile layer
+            L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 16,
+                attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
+            }).addTo(soilMap);
+
+            soilSamples.forEach(sample => {
+                let colorHex = sample.status === 'critical' ? '#dc2626' : (sample.status === 'warning' ? '#d97706' : '#059669');
+                let htmlIcon = `<div style="background-color: ${colorHex}; width: 28px; height: 28px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: bold;">${sample.id}</div>`;
+                
+                let customIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: htmlIcon,
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
+                });
+
+                let marker = L.marker([sample.lat, sample.lng], { icon: customIcon }).addTo(soilMap);
+
+                let popupContent = `
+                    <div style="font-family: 'Inter', sans-serif; font-size: 13px; max-width: 240px;">
+                        <strong style="color: #0f172a; font-size: 14px;">Проба №${sample.id}: ${sample.location}</strong><br>
+                        <span style="color: #64748b; font-size: 11px;">${sample.community} (${sample.oblast} обл.)</span><br>
+                        <div style="margin: 6px 0 4px 0; background: #f8fafc; padding: 6px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                            <b>Опис:</b> ${sample.desc}
+                        </div>
+                        <button onclick="showDetails(${sample.id})" style="background: #d97706; color: white; border: none; padding: 5px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; width: 100%; margin-top: 4px; font-weight: 500;">Детальна інформація</button>
+                    </div>
+                `;
+                marker.bindPopup(popupContent);
+            });
+            soilMap.invalidateSize();
+        }
+
+        window.onload = function() {
+            renderTable(soilSamples);
+
+            const ctxBar = document.getElementById('soilExcessesChart').getContext('2d');
+            new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: ['Свинець (Pb)', 'Нікель (Ni)', 'Мідь (Cu)', 'Цинк (Zn)', 'Марганець (Mn)', 'Хром (Cr)', 'Кадмій (Cd)'],
+                    datasets: [{
+                        label: 'Кількість зафіксованих перевищень (з 20 проб)',
+                        data: [5, 3, 2, 2, 1, 0, 0],
+                        backgroundColor: ['#dc2626', '#d97706', '#d97706', '#f59e0b', '#f59e0b', '#059669', '#059669'],
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, max: 6, grid: { color: '#f1f5f9' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+
+            const ctxPie = document.getElementById('soilRegionsChart').getContext('2d');
+            new Chart(ctxPie, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Сумська область (15 проб)', 'Харківська область (5 проб)'],
+                    datasets: [{
+                        data: [15, 5],
+                        backgroundColor: ['#d97706', '#0d9488'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 12, font: { family: 'Inter', size: 11 } } }
+                    },
+                    cutout: '70%'
+                }
+            });
+        };
+    </script>
+</body>
+</html>
